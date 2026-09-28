@@ -1,0 +1,37 @@
+name: SoDMs
+options:
+  bundleIdPrefix: com.figueiredo
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  SoDMs:
+    type: application
+    platform: iOS
+    sources:
+      - path: SoDMs
+        excludes:
+          - "*.js"
+      - path: SoDMs/so-dms.user.js
+        buildPhase: resources
+    scheme: {}
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.figueiredo.sodms
+        PRODUCT_NAME: SoDMs
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "5.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "Só DMs"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_NSCameraUsageDescription: "Para enviar fotos e vídeos nas conversas."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Para gravar áudios nas conversas."
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Para enviar fotos da sua galeria nas conversas."
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "Para salvar fotos recebidas nas conversas."
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""
