@@ -1,7 +1,13 @@
 import SwiftUI
+import AVFoundation
 
 @main
 struct SoDMsApp: App {
+    init() {
+        // vídeos com som mesmo com a chave do iPhone no silencioso
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
+    }
+
     var body: some Scene {
         WindowGroup {
             InstagramView()

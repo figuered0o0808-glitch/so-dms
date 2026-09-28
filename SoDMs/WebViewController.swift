@@ -149,6 +149,37 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         present(alert, animated: true)
     }
 
+    // MARK: - Diagnóstico (chacoalhar o celular)
+
+    override var canBecomeFirstResponder: Bool { true }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        becomeFirstResponder()
+    }
+
+    override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
+        guard motion == .motionShake else { return }
+        let alerta = UIAlertController(title: "Diagnóstico",
+                                       message: "Gerar um raio-x desta tela (sem o texto das mensagens) para enviar e ajustar o app?",
+                                       preferredStyle: .alert)
+        alerta.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
+        alerta.addAction(UIAlertAction(title: "Gerar", style: .default) { [weak self] _ in self?.gerarDiagnostico() })
+        present(alerta, animated: true)
+    }
+
+    private func gerarDiagnostico() {
+        webView.evaluateJavaScript("window.__soDMsDiagnostico ? window.__soDMsDiagnostico() : 'script não carregado'") { [weak self] result, error in
+            guard let self = self else { return }
+            let texto = (result as? String) ?? "erro: \(error?.localizedDescription ?? "?")"
+            let arquivo = FileManager.default.temporaryDirectory.appendingPathComponent("diagnostico-dms.txt")
+            try? texto.write(to: arquivo, atomically: true, encoding: .utf8)
+            let share = UIActivityViewController(activityItems: [arquivo], applicationActivities: nil)
+            share.popoverPresentationController?.sourceView = self.view
+            self.present(share, animated: true)
+        }
+    }
+
     // MARK: - Erros
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
