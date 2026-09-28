@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Só DMs
 // @description  Deixa o Instagram apenas com as mensagens diretas. Bloqueia feed, explorar, reels, busca e notas.
-// @version      3.0
+// @version      4.0
 // @match        *://*.instagram.com/*
 // @run-at       document-start
 // @grant        none
@@ -265,7 +265,7 @@
     }
   `;
   function injetarCSS() {
-    if (document.getElementById("so-dms-css")) return;
+    if (!(document.head || document.documentElement) || document.getElementById("so-dms-css")) return;
     const s = document.createElement("style");
     s.id = "so-dms-css";
     s.textContent = css;
@@ -288,8 +288,25 @@
   // ================== NOTAS ==================
   const TEXTO_NOTA = /^(sua nota|your note|deixe uma nota|leave a note|compartilhe uma ideia|compartilhe um pensamento|share a thought|nota\.{0,3}|note\.{0,3}|notas|notes)$/i;
 
+  // a lista de conversas: o maior contêiner que rola na vertical
+  function listaDeConversas() {
+    let melhor = null, area = 0;
+    for (const el of document.querySelectorAll("div, section, main")) {
+      const cs = getComputedStyle(el);
+      if (!/(auto|scroll)/.test(cs.overflowY) || el.scrollHeight <= el.clientHeight + 50) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width * r.height > area) { area = r.width * r.height; melhor = el; }
+    }
+    return melhor;
+  }
+  let _lista = null;
   function temConversas(el) {
+    if (_lista && (el === _lista || el.contains(_lista))) return true;
     return !!el.querySelector('a[href^="/direct/t/"], [role="listitem"] a[href*="/direct/"]');
+  }
+  // limite do cabeçalho: busca, abas (Principal/Geral/Pedidos) e a lista ficam intactos
+  function ehLimite(el) {
+    return temConversas(el) || !!el.querySelector('input, textarea, [role="tablist"], [role="tab"]');
   }
   function rolaNaHorizontal(el) {
     const cs = getComputedStyle(el);
@@ -312,6 +329,7 @@
 
   function esconderNotas() {
     if (!ESCONDER_NOTAS || !location.pathname.startsWith("/direct/inbox")) return;
+    _lista = listaDeConversas();
     for (const el of document.querySelectorAll("span, div, a, button")) {
       if (el.childElementCount > 1 || el.closest("[data-so-dms-oculto]")) continue;
       const t = (el.innerText || el.getAttribute("aria-label") || "").trim();
@@ -326,32 +344,55 @@
         if (rolaNaHorizontal(atual) || atual.getAttribute("role") === "list") fileira = atual;
       }
       if (!fileira) continue;
-      ocultar(fileira);
 
-      // 2. recolhe os contêineres que ficaram vazios em volta dela (o espaço em branco)
-      let pai = fileira.parentElement;
-      while (pai && pai !== document.body && !temConversas(pai)) {
-        if (temConteudoVisivel(pai)) {
-          // sobrou algo (ex.: o título do cabeçalho): tira a altura fixa, mantém o resto
-          pai.style.setProperty("height", "auto", "important");
-          pai.style.setProperty("min-height", "0", "important");
-          break;
-        }
-        ocultar(pai);
-        pai = pai.parentElement;
+      // 2. sobe até o maior bloco que só tem as notas (inclui a setinha ">" do carrossel)
+      let bloco = fileira;
+      while (bloco.parentElement && bloco.parentElement !== document.body && !ehLimite(bloco.parentElement)) {
+        bloco = bloco.parentElement;
       }
-      // 3. se a lista de conversas guardou um espaço reservado no topo, zera
-      if (pai) {
-        for (const c of pai.children) {
-          if (c.getAttribute("data-so-dms-oculto")) continue;
-          if (temConversas(c)) {
-            const cs = getComputedStyle(c);
-            if (parseFloat(cs.paddingTop) > 40) c.style.setProperty("padding-top", "0", "important");
-            if (parseFloat(cs.marginTop) > 40) c.style.setProperty("margin-top", "0", "important");
-          }
+      ocultar(bloco);
+
+      // 3. o cabeçalho que guardava a altura das notas volta ao tamanho natural
+      let cab = bloco.parentElement;
+      let cabecalho = null;
+      for (let i = 0; i < 6 && cab && cab !== document.body && !temConversas(cab); i++) {
+        cab.style.setProperty("height", "auto", "important");
+        cab.style.setProperty("min-height", "0", "important");
+        cab.style.setProperty("max-height", "none", "important");
+        cabecalho = cab;
+        cab = cab.parentElement;
+      }
+
+      // 4. se a lista reservou espaço no topo para o cabeçalho antigo, ajusta
+      if (_lista && cabecalho) {
+        const altura = cabecalho.getBoundingClientRect().bottom;
+        let el = _lista;
+        for (let i = 0; i < 4 && el && el !== document.body; i++, el = el.parentElement) {
+          const cs = getComputedStyle(el);
+          const pt = parseFloat(cs.paddingTop), mt = parseFloat(cs.marginTop), top = parseFloat(cs.top);
+          if (pt > 60) el.style.setProperty("padding-top", "0", "important");
+          if (mt > 60) el.style.setProperty("margin-top", "0", "important");
+          if ((cs.position === "absolute" || cs.position === "fixed") && top > altura + 20) el.style.setProperty("top", altura + "px", "important");
         }
       }
     }
+  }
+
+  // ================== BARRA INFERIOR (perfil) ==================
+  // barra com o aviãozinho e a sua foto que aparece fora do inbox
+  function esconderBarraInferior() {
+    document.querySelectorAll('a[href="/direct/inbox/"], a[href^="/direct/inbox"]').forEach((a) => {
+      let el = a;
+      for (let i = 0; i < 8 && el && el !== document.body; i++, el = el.parentElement) {
+        const cs = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        if ((cs.position === "fixed" || cs.position === "sticky") && r.bottom >= window.innerHeight - 10 && r.height < 140) {
+          el.setAttribute("data-so-dms-oculto", "1");
+          el.style.setProperty("display", "none", "important");
+          return;
+        }
+      }
+    });
   }
 
   // ================== AVISOS "ABRA O APP" ==================
@@ -426,6 +467,7 @@
       marcarPagina();
       esconderSetaDoInbox();
       esconderNotas();
+      esconderBarraInferior();
       limparAvisosDoApp();
       ligarSom();
     });

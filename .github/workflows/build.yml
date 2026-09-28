@@ -13,9 +13,24 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Instalar XcodeGen
         run: brew install xcodegen
+
+      - name: Ícone personalizado (pasta icone/)
+        run: |
+          f=$(git log --format= --name-only --diff-filter=AM -- 'icone/*.png' 'icone/*.PNG' 'icone/*.jpg' 'icone/*.JPG' 'icone/*.jpeg' 'icone/*.JPEG' | while read x; do [ -f "$x" ] && echo "$x"; done | head -1)
+          if [ -z "$f" ]; then echo "Sem ícone personalizado, usando o padrão"; exit 0; fi
+          echo "Usando $f"
+          sips -s format jpeg "$f" --out /tmp/icone.jpg          # tira a transparência
+          w=$(sips -g pixelWidth /tmp/icone.jpg | awk '/pixelWidth/{print $2}')
+          h=$(sips -g pixelHeight /tmp/icone.jpg | awk '/pixelHeight/{print $2}')
+          m=$(( w < h ? w : h ))
+          sips --cropToHeightWidth $m $m /tmp/icone.jpg --out /tmp/icone.jpg
+          sips -z 1024 1024 /tmp/icone.jpg --out /tmp/icone.jpg
+          sips -s format png /tmp/icone.jpg --out SoDMs/Assets.xcassets/AppIcon.appiconset/icon-1024.png
 
       - name: Gerar projeto Xcode
         run: xcodegen generate

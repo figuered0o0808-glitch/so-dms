@@ -1,0 +1,3 @@
+Coloque aqui UMA imagem (png ou jpg) para ser o ícone do app.
+Qualquer tamanho serve: o GitHub corta no centro para ficar quadrada e ajusta para 1024x1024.
+Se houver mais de uma imagem, vale a mais recente enviada. Para voltar ao ícone padrão, apague as imagens desta pasta.

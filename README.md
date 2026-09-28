@@ -13,3 +13,10 @@ feed, Explorar, aba Reels, busca, notas e a rolagem de reels/stories.
 Instale pelo SideStore (Meus Apps > +, escolha o arquivo SoDMs.ipa).
 
 A cada alteração enviada para o GitHub, uma nova versão é gerada automaticamente (aba Actions).
+
+## Trocar o ícone
+
+Envie uma imagem (png ou jpg) para a pasta `icone/`:
+https://github.com/figuered0o0808-glitch/so-dms/upload/main/icone
+
+O GitHub gera uma versão nova com o ícone em uns 3 minutos. Depois é só reinstalar pelo SideStore.
