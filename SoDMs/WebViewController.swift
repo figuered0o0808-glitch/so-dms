@@ -2,10 +2,11 @@ import UIKit
 import WebKit
 import SafariServices
 
-final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
+final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
 
     private let inbox = URL(string: "https://www.instagram.com/direct/inbox/")!
     private var webView: WKWebView!
+    private let faixaTopo = UIView()   // área do relógio, pintada com a cor do Instagram
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -24,6 +25,8 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             config.userContentController.addUserScript(script)
         }
 
+        config.userContentController.add(self, name: "cores")
+
         webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
         webView.uiDelegate = self
@@ -35,8 +38,16 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         webView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(webView)
 
+        faixaTopo.backgroundColor = .systemBackground
+        faixaTopo.translatesAutoresizingMaskIntoConstraints = false
+        view.insertSubview(faixaTopo, belowSubview: webView)
+
         let guide = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
+            faixaTopo.topAnchor.constraint(equalTo: view.topAnchor),
+            faixaTopo.bottomAnchor.constraint(equalTo: guide.topAnchor),
+            faixaTopo.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            faixaTopo.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             webView.topAnchor.constraint(equalTo: guide.topAnchor),
             webView.bottomAnchor.constraint(equalTo: guide.bottomAnchor),
             webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -147,6 +158,28 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel) { _ in completionHandler(false) })
         alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) })
         present(alert, animated: true)
+    }
+
+    // MARK: - Cores das bordas (sem faixas pretas em cima e embaixo)
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "cores", let dict = message.body as? [String: Any] else { return }
+        if let topo = dict["topo"] as? String, let cor = Self.cor(css: topo) { faixaTopo.backgroundColor = cor }
+        if let base = dict["base"] as? String, let cor = Self.cor(css: base) {
+            view.backgroundColor = cor
+            webView.backgroundColor = cor
+            webView.scrollView.backgroundColor = cor
+        }
+    }
+
+    /// Converte "rgb(12, 16, 20)" ou "rgba(12, 16, 20, 1)" em UIColor
+    static func cor(css: String) -> UIColor? {
+        let nums = css.components(separatedBy: CharacterSet(charactersIn: "0123456789.").inverted)
+            .compactMap { Double($0) }
+        guard nums.count >= 3 else { return nil }
+        let alpha = nums.count >= 4 ? nums[3] : 1
+        guard alpha > 0.5 else { return nil }
+        return UIColor(red: nums[0] / 255, green: nums[1] / 255, blue: nums[2] / 255, alpha: 1)
     }
 
     // MARK: - Diagnóstico (chacoalhar o celular)

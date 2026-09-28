@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Só DMs
 // @description  Deixa o Instagram apenas com as mensagens diretas. Bloqueia feed, explorar, reels, busca e notas.
-// @version      4.0
+// @version      5.0
 // @match        *://*.instagram.com/*
 // @run-at       document-start
 // @grant        none
@@ -381,18 +381,49 @@
   // ================== BARRA INFERIOR (perfil) ==================
   // barra com o aviãozinho e a sua foto que aparece fora do inbox
   function esconderBarraInferior() {
-    document.querySelectorAll('a[href="/direct/inbox/"], a[href^="/direct/inbox"]').forEach((a) => {
+    if (location.pathname.startsWith("/direct/")) return;   // nas conversas fica o campo de mensagem
+    const alvos = new Set();
+    document.querySelectorAll('a[href*="/direct"]').forEach((a) => alvos.add(a));
+    document.querySelectorAll("svg[aria-label]").forEach((svg) => {
+      if (/(direct|mensage|messenger|messages)/i.test(svg.getAttribute("aria-label") || "")) alvos.add(svg);
+    });
+    const H = window.innerHeight, W = window.innerWidth;
+    alvos.forEach((a) => {
+      const ra = a.getBoundingClientRect();
+      if (ra.height === 0 || ra.top < H - 160) return;          // só o que está colado no rodapé
       let el = a;
-      for (let i = 0; i < 8 && el && el !== document.body; i++, el = el.parentElement) {
-        const cs = getComputedStyle(el);
+      for (let i = 0; i < 10 && el && el !== document.body; i++, el = el.parentElement) {
         const r = el.getBoundingClientRect();
-        if ((cs.position === "fixed" || cs.position === "sticky") && r.bottom >= window.innerHeight - 10 && r.height < 140) {
+        if (r.width >= W * 0.9 && r.bottom >= H - 12 && r.height < 140 && r.height > 30) {
           el.setAttribute("data-so-dms-oculto", "1");
           el.style.setProperty("display", "none", "important");
           return;
         }
       }
     });
+  }
+
+  // ================== COR DAS BORDAS ==================
+  // avisa o app da cor do topo e do rodapé, para pintar a área do relógio e da barrinha do iPhone
+  function corEm(x, y) {
+    let el = document.elementFromPoint(x, y);
+    while (el) {
+      const c = getComputedStyle(el).backgroundColor;
+      if (c && c !== "transparent" && !/rgba\(.*,\s*0\)$/.test(c)) return c;
+      el = el.parentElement;
+    }
+    return getComputedStyle(document.documentElement).backgroundColor;
+  }
+  let ultimaCor = "";
+  function avisarCores() {
+    const h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.cores;
+    if (!h || !document.body) return;
+    const topo = corEm(window.innerWidth / 2, 2);
+    const base = corEm(window.innerWidth / 2, window.innerHeight - 2);
+    const chave = topo + "|" + base;
+    if (chave === ultimaCor) return;
+    ultimaCor = chave;
+    h.postMessage({ topo, base });
   }
 
   // ================== AVISOS "ABRA O APP" ==================
@@ -469,13 +500,14 @@
       esconderNotas();
       esconderBarraInferior();
       limparAvisosDoApp();
+      avisarCores();
       ligarSom();
     });
   }
 
   function iniciar() {
     limpar();
-    new MutationObserver(limpar).observe(document.documentElement, { childList: true, subtree: true });
+    new MutationObserver(limpar).observe(document.documentElement || document, { childList: true, subtree: true });
   }
   injetarCSS();
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", iniciar);
