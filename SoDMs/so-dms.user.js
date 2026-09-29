@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Só DMs
 // @description  Deixa o Instagram apenas com as mensagens diretas. Bloqueia feed, explorar, reels, busca e notas.
-// @version      5.0
+// @version      6.0
 // @match        *://*.instagram.com/*
 // @run-at       document-start
 // @grant        none
@@ -212,6 +212,44 @@
       return;
     }
     videoAtivo = v;
+  }, true);
+
+  // ================== RETURN = NOVA LINHA ==================
+  // No campo de mensagem, o "return" do teclado pula linha em vez de enviar.
+  // Para enviar, use o botão "Enviar".
+  function campoDeMensagem(el) {
+    if (!location.pathname.startsWith("/direct/") || !el || !el.closest) return null;
+    return el.closest('textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]');
+  }
+  function pularLinha(campo) {
+    if (campo.tagName === "TEXTAREA") {
+      document.execCommand("insertText", false, "\n");
+      return;
+    }
+    if (!document.execCommand("insertLineBreak")) {
+      campo.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter", code: "Enter", keyCode: 13, which: 13, shiftKey: true, bubbles: true, cancelable: true,
+      }));
+    }
+  }
+  let pulouAgora = 0;
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey) return;
+    const campo = campoDeMensagem(e.target);
+    if (!campo) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    pulouAgora = Date.now();
+    pularLinha(campo);
+  }, true);
+  // teclado com texto preditivo às vezes manda o "return" só como beforeinput
+  window.addEventListener("beforeinput", (e) => {
+    if (e.inputType !== "insertParagraph") return;
+    const campo = campoDeMensagem(e.target);
+    if (!campo) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (Date.now() - pulouAgora > 150) pularLinha(campo);
   }, true);
 
   // ================== SOM ==================
