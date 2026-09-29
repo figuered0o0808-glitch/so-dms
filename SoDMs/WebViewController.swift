@@ -26,6 +26,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         }
 
         config.userContentController.add(self, name: "cores")
+        config.userContentController.add(self, name: "vibrar")
 
         webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
@@ -163,6 +164,10 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     // MARK: - Cores das bordas (sem faixas pretas em cima e embaixo)
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "vibrar" {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            return
+        }
         guard message.name == "cores", let dict = message.body as? [String: Any] else { return }
         if let topo = dict["topo"] as? String, let cor = Self.cor(css: topo) { faixaTopo.backgroundColor = cor }
         if let base = dict["base"] as? String, let cor = Self.cor(css: base) {

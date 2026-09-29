@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Só DMs
 // @description  Deixa o Instagram apenas com as mensagens diretas. Bloqueia feed, explorar, reels, busca e notas.
-// @version      6.0
+// @version      7.0
 // @match        *://*.instagram.com/*
 // @run-at       document-start
 // @grant        none
@@ -112,6 +112,7 @@
     const p = location.pathname;
     el.setAttribute("data-so-dms", tipoDaPagina(p));
     el.setAttribute("data-so-dms-tela", /^\/direct\/inbox\/?$/.test(p) ? "inbox" : "outra");
+    el.setAttribute("data-so-dms-lista", /^\/direct\/(inbox|general|primary|requests)/.test(p) ? "sim" : "nao");
   }
 
   function checar(origem) {
@@ -252,6 +253,101 @@
     if (Date.now() - pulouAgora > 150) pularLinha(campo);
   }, true);
 
+  // ================== SEGURAR UMA CONVERSA = MENU ==================
+  // O Instagram web só mostra os "..." de cada conversa quando o mouse passa por cima.
+  // Aqui, segurar o dedo numa conversa simula esse "passar o mouse" e abre o menu
+  // (marcar como não lida, mover para Geral/Principal, silenciar, apagar...).
+  const PALAVRAS_MENU = /(mais op|more op|opç|option|menu|configura|settings|mais$|more$)/i;
+
+  function ehListaDeConversas() {
+    return /^\/direct\/(inbox|general|primary|requests)/.test(location.pathname);
+  }
+  function linhaDaConversa(el) {
+    const W = window.innerWidth;
+    for (let i = 0; i < 12 && el && el !== document.body; i++, el = el.parentElement) {
+      const r = el.getBoundingClientRect();
+      if (r.width >= W * 0.85 && r.height >= 50 && r.height <= 120) return el;
+    }
+    return null;
+  }
+  function simularMouse(el) {
+    const r = el.getBoundingClientRect();
+    const o = { bubbles: true, cancelable: true, clientX: r.left + r.width * 0.7, clientY: r.top + r.height / 2, view: window };
+    for (const alvo of [el, ...el.querySelectorAll("*")].slice(0, 40)) {
+      alvo.dispatchEvent(new PointerEvent("pointerover", { ...o, pointerType: "mouse" }));
+      alvo.dispatchEvent(new PointerEvent("pointerenter", { ...o, bubbles: false, pointerType: "mouse" }));
+      alvo.dispatchEvent(new MouseEvent("mouseover", o));
+      alvo.dispatchEvent(new MouseEvent("mouseenter", { ...o, bubbles: false }));
+    }
+    el.dispatchEvent(new MouseEvent("mousemove", o));
+  }
+  function botaoDeOpcoes(linha) {
+    for (const b of linha.querySelectorAll('button, [role="button"], [aria-haspopup]')) {
+      if (b === linha) continue;
+      const svg = b.querySelector("svg[aria-label]");
+      const rotulo = (b.getAttribute("aria-label") || (svg && svg.getAttribute("aria-label")) || "").trim();
+      if (PALAVRAS_MENU.test(rotulo) || b.getAttribute("aria-haspopup")) return b;
+    }
+    return null;
+  }
+  function vibrar() {
+    const h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.vibrar;
+    if (h) h.postMessage(1);
+  }
+  function aviso(texto) {
+    const d = document.createElement("div");
+    d.textContent = texto;
+    d.style.cssText = "position:fixed;left:50%;bottom:40px;transform:translateX(-50%);background:rgba(60,60,60,.95);color:#fff;padding:10px 16px;border-radius:12px;font:14px -apple-system;z-index:999999;max-width:85vw;text-align:center";
+    document.body.appendChild(d);
+    setTimeout(() => d.remove(), 2600);
+  }
+
+  let segurando = null;
+  let engolirCliqueAte = 0;
+  window.addEventListener("touchstart", (e) => {
+    if (!ehListaDeConversas() || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const linha = linhaDaConversa(e.target);
+    if (!linha) return;
+    clearTimeout(segurando && segurando.timer);
+    segurando = { x: t.clientX, y: t.clientY, timer: setTimeout(() => abrirMenu(linha), 480) };
+  }, { capture: true, passive: true });
+  window.addEventListener("touchmove", (e) => {
+    if (!segurando) return;
+    const t = e.touches[0];
+    if (t && Math.hypot(t.clientX - segurando.x, t.clientY - segurando.y) > 10) { clearTimeout(segurando.timer); segurando = null; }
+  }, { capture: true, passive: true });
+  window.addEventListener("touchend", () => { if (segurando) { clearTimeout(segurando.timer); segurando = null; } }, { capture: true, passive: true });
+
+  function abrirMenu(linha) {
+    segurando = null;
+    engolirCliqueAte = Date.now() + 900;   // soltar o dedo não abre a conversa
+    vibrar();
+    simularMouse(linha);
+    let tentativas = 0;
+    (function procurar() {
+      const b = botaoDeOpcoes(linha);
+      if (b) {
+        linha.setAttribute("data-so-dms-menu", "1");
+        setTimeout(() => b.click(), 30);
+        return;
+      }
+      if (++tentativas < 6) return setTimeout(procurar, 60);
+      // último recurso: clique com o botão direito
+      const r = linha.getBoundingClientRect();
+      const ok = !linha.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
+      if (!ok) aviso("Não achei o menu dessa conversa. Chacoalhe o celular aqui e me mande o diagnóstico.");
+    })();
+  }
+  window.addEventListener("click", (e) => {
+    if (Date.now() < engolirCliqueAte && linhaDaConversa(e.target) && e.isTrusted) {
+      const b = e.target.closest && e.target.closest('button, [role="button"], [aria-haspopup]');
+      if (b && botaoDeOpcoes(linhaDaConversa(e.target)) === b) return; // o clique no "..." passa
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }, true);
+
   // ================== SOM ==================
   const somLigadoEm = new WeakSet();
   function ligarSom() {
@@ -287,6 +383,12 @@
     a:has(svg[aria-label="Reels"]) {
       display: none !important;
     }
+
+    /* segurar uma conversa não seleciona texto nem abre o menu do iPhone */
+    html[data-so-dms-lista="sim"] body { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+    html[data-so-dms-lista="sim"] input { -webkit-user-select: text; user-select: text; }
+    /* os "..." de cada conversa ficam sempre visíveis quando existirem */
+    html[data-so-dms-lista="sim"] [aria-haspopup] { opacity: 1 !important; visibility: visible !important; }
 
     /* seta de voltar no topo do inbox (levaria ao feed) */
     html[data-so-dms-tela="inbox"] :is(a, button, [role="button"]):has(svg[aria-label="Voltar"], svg[aria-label="Back"], svg[aria-label="Anterior"]),
