@@ -6,6 +6,11 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
 
     private let inbox = URL(string: "https://www.instagram.com/direct/inbox/")!
     private var webView: WKWebView!
+    private let uaComputador = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15"
+    private var modoComputador: Bool {
+        get { UserDefaults.standard.bool(forKey: "modoComputador") }
+        set { UserDefaults.standard.set(newValue, forKey: "modoComputador") }
+    }
     private let faixaTopo = UIView()   // área do relógio, pintada com a cor do Instagram
 
     override func viewDidLoad() {
@@ -27,8 +32,10 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
 
         config.userContentController.add(self, name: "cores")
         config.userContentController.add(self, name: "vibrar")
+        config.userContentController.add(self, name: "opcoes")
 
         webView = WKWebView(frame: .zero, configuration: config)
+        if modoComputador { webView.customUserAgent = uaComputador }
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true   // arrastar da borda para voltar
@@ -164,6 +171,10 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     // MARK: - Cores das bordas (sem faixas pretas em cima e embaixo)
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "opcoes" {
+            mostrarOpcoes()
+            return
+        }
         if message.name == "vibrar" {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             return
@@ -198,12 +209,26 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
 
     override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
         guard motion == .motionShake else { return }
-        let alerta = UIAlertController(title: "Diagnóstico",
-                                       message: "Gerar um raio-x desta tela (sem o texto das mensagens) para enviar e ajustar o app?",
-                                       preferredStyle: .alert)
+        mostrarOpcoes()
+    }
+
+    private func mostrarOpcoes() {
+        let atual = modoComputador ? "computador" : "celular"
+        let alerta = UIAlertController(title: "Opções do app",
+                                       message: "Versão do Instagram em uso: \(atual).",
+                                       preferredStyle: .actionSheet)
+        alerta.addAction(UIAlertAction(title: modoComputador ? "Usar versão de celular" : "Usar versão de computador",
+                                       style: .default) { [weak self] _ in self?.alternarModo() })
+        alerta.addAction(UIAlertAction(title: "Gerar diagnóstico", style: .default) { [weak self] _ in self?.gerarDiagnostico() })
         alerta.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
-        alerta.addAction(UIAlertAction(title: "Gerar", style: .default) { [weak self] _ in self?.gerarDiagnostico() })
+        alerta.popoverPresentationController?.sourceView = view
         present(alerta, animated: true)
+    }
+
+    private func alternarModo() {
+        modoComputador.toggle()
+        webView.customUserAgent = modoComputador ? uaComputador : nil
+        webView.load(URLRequest(url: inbox))
     }
 
     private func gerarDiagnostico() {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Só DMs
 // @description  Deixa o Instagram apenas com as mensagens diretas. Bloqueia feed, explorar, reels, busca e notas.
-// @version      7.0
+// @version      7.1
 // @match        *://*.instagram.com/*
 // @run-at       document-start
 // @grant        none
@@ -336,7 +336,16 @@
       // último recurso: clique com o botão direito
       const r = linha.getBoundingClientRect();
       const ok = !linha.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
-      if (!ok) aviso("Não achei o menu dessa conversa. Chacoalhe o celular aqui e me mande o diagnóstico.");
+      if (!ok) {
+        const h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.opcoes;
+        const celular = /iPhone/.test(navigator.userAgent);
+        if (celular && h) {
+          aviso("A versão de celular do Instagram não tem esse menu. Ative a versão de computador.");
+          setTimeout(() => h.postMessage(1), 900);
+        } else {
+          aviso("Não achei o menu dessa conversa. Chacoalhe o celular e gere o diagnóstico.");
+        }
+      }
     })();
   }
   window.addEventListener("click", (e) => {
