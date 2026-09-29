@@ -1,6 +1,7 @@
 import UIKit
 import WebKit
 import SafariServices
+import AVFoundation
 
 final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
 
@@ -149,7 +150,15 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
                  initiatedByFrame frame: WKFrameInfo,
                  type: WKMediaCaptureType,
                  decisionHandler: @escaping (WKPermissionDecision) -> Void) {
-        decisionHandler(origin.host.hasSuffix("instagram.com") ? .grant : .prompt)
+        guard origin.host.hasSuffix("instagram.com") else { return decisionHandler(.prompt) }
+        // garante a permissão do iPhone para o microfone antes de liberar para o site
+        AVAudioSession.sharedInstance().requestRecordPermission { ok in
+            DispatchQueue.main.async {
+                try? AVAudioSession.sharedInstance().setActive(true)
+                decisionHandler(ok ? .grant : .deny)
+                if !ok { self.avisarMicrofone() }
+            }
+        }
     }
 
     // Caixas de alerta/confirmação do site
@@ -241,6 +250,17 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             share.popoverPresentationController?.sourceView = self.view
             self.present(share, animated: true)
         }
+    }
+
+    private func avisarMicrofone() {
+        let a = UIAlertController(title: "Microfone bloqueado",
+                                  message: "Para gravar áudios, libere o microfone em Ajustes > DMs > Microfone.",
+                                  preferredStyle: .alert)
+        a.addAction(UIAlertAction(title: "Abrir Ajustes", style: .default) { _ in
+            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+        })
+        a.addAction(UIAlertAction(title: "OK", style: .cancel))
+        present(a, animated: true)
     }
 
     // MARK: - Erros

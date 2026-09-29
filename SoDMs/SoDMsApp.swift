@@ -4,8 +4,11 @@ import AVFoundation
 @main
 struct SoDMsApp: App {
     init() {
-        // vídeos com som mesmo com a chave do iPhone no silencioso
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
+        // Tocar E gravar: vídeos com som mesmo no silencioso, e o microfone liberado
+        // para os áudios. (Só "tocar" deixava a gravação muda.)
+        try? AVAudioSession.sharedInstance().setCategory(
+            .playAndRecord, mode: .default,
+            options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP, .allowAirPlay])
     }
 
     var body: some Scene {
